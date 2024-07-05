@@ -1,0 +1,4 @@
+name: Seraphwave
+version: '${version}'
+main: xyz.stopthis.Plugin
+api-version: '1.21'
