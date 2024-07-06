@@ -20,8 +20,8 @@ repositories {
 
 dependencies {
     compileOnly "org.spigotmc:spigot-api:1.21-R0.1-SNAPSHOT"
-
-    implementation group: 'org.scala-lang', name: 'scala-library', version: '2.13.14'
+    // https://mvnrepository.com/artifact/org.scala-lang/scala3-library
+    implementation group: 'org.scala-lang', name: 'scala3-library_3', version: '3.3.3'
 }
 
 def targetJavaVersion = 21
