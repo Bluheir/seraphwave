@@ -1,0 +1,6 @@
+http-server:
+  # the IP address to host the HTTP and WebSocket server on.
+  ip: 127.0.0.1
+  # the port to host the HTTP and WebSocket server on.
+  port: 65437
+
