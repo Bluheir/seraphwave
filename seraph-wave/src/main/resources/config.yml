@@ -1,6 +1,17 @@
 http-server:
   # the IP address to host the HTTP and WebSocket server on.
-  ip: 127.0.0.1
+  host: localhost
+
   # the port to host the HTTP and WebSocket server on.
   port: 65437
 
+meta-info:
+  # if alt accounts should be supported
+  alt-accounts: true
+
+  # the welcome message players will see when accessing the web GUI
+  welcome-msg: Welcome to proximity chat!
+
+audio-settings:
+  # how far away two players must be from each other (in blocks) to receive audio packets.
+  activation-radius: 30
