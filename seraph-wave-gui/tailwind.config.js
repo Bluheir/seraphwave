@@ -1,12 +1,13 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-	content: [],
+	content: ["./src/**/*.{html,js,svelte}"],
 	theme: {
 		extend: {},
 	},
 	daisyui: {
 		themes: [
 			"light",
+			"dark",
 			"synthwave",
 			"cyberpunk",
 			"wireframe",
@@ -14,15 +15,12 @@ export default {
 			"luxury",
 			"sunset",
 			"coffee",
+			"wireframe-dark",
+			"black",
 			{
 				"cyberpunk-dark": {
 					...require("daisyui/src/theming/themes")["cyberpunk"],
 					...require("daisyui/src/theming/themes")["sunset"]
-				},
-				"black": {
-					...require("daisyui/src/theming/themes")["black"],
-					"--animation-btn": ".25s",
-					"--animation-input": ".2s",
 				},
 				"base": {
 					...require("daisyui/src/theming/themes")["black"],
@@ -38,5 +36,5 @@ export default {
 			}
 		]
 	},
-	plugins: [require("daisyui")],
+	plugins: [require("@tailwindcss/typography"), require("daisyui")],
 }
