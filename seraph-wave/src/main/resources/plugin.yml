@@ -1,4 +1,10 @@
 name: Seraphwave
 version: '${version}'
-main: xyz.stopthis.Plugin
+main: com.seraphwave.Plugin
 api-version: '1.21'
+
+commands:
+   joinprox:
+      description: Joins the proximity chat
+      usage: /joinprox <code>
+      permission: seraphwave.joinprox
