@@ -5,6 +5,9 @@ http-server:
   # the port to host the HTTP and WebSocket server on.
   port: 65437
 
+  # the URL for the WebSocket server. modify this for nginx servers
+  websocket-url: "auto"
+
 meta-info:
   # if alt accounts should be supported
   alt-accounts: true

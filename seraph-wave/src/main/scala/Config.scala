@@ -15,23 +15,35 @@ class ServerConfig(
 class ServerMetaInfo(
   val altAccounts: Boolean,
   val welcomeMsg: String,
+  val webSocketUrl: String,
 )
 class AudioSettings(
   val activationRadius: Double,
 )
 
 def fromFileConfig(config: FileConfiguration): Config = {
+  val host = config.getString("http-server.host", "localhost")
+  val port = config.getInt("http-server.port", 65437)
+  
+  val webSocketUrlF = config.getString("http-server.websocket-url", "auto")
+  val webSocketUrl = if(webSocketUrlF == "auto") {
+    s"ws://${host}:${port}/gateway"
+  } else {
+    webSocketUrlF
+  }
+
   Config(
     audioSettings = AudioSettings(
       activationRadius = config.getDouble("audio-settings.activation-radius", 30.0)
     ),
     metaInfo = ServerMetaInfo(
       altAccounts = config.getBoolean("meta-info.alt-accounts", true),
-      welcomeMsg = config.getString("meta-info.welcome-msg", "Welcome to proximity chat!")
+      welcomeMsg = config.getString("meta-info.welcome-msg", "Welcome to proximity chat!"),
+      webSocketUrl = webSocketUrl
     ),
     httpServer = ServerConfig(
-      host = config.getString("http-server.host", "localhost"),
-      port = config.getInt("http-server.port", 65437)
+      host = host,
+      port = port
     )
   )
 }

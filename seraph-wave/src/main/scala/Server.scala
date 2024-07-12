@@ -43,7 +43,7 @@ import org.bukkit.entity
 import java.{util => ju}
 
 def metaJson(meta: ServerMetaInfo): Json =
-  json"""{"welcomeMsg": ${meta.welcomeMsg}, "altAccounts": ${meta.altAccounts}}"""
+  json"""{"welcomeMsg": ${meta.welcomeMsg}, "altAccounts": ${meta.altAccounts}, "webSocketUrl": ${meta.webSocketUrl}}"""
 
 def codeJson(code: String): Json =
   json"""{"code": ${code}}"""
