@@ -34,7 +34,7 @@ import fs2.{Pipe, Stream, Pull, Chunk}
 import org.bukkit.entity.Player
 import org.bukkit.NamespacedKey
 import org.bukkit.persistence.PersistentDataType
-import org.bukkit.util.Vector as Vector3
+import org.bukkit.util.Vector as SVec3d
 
 import java.util.UUID
 import scodec.bits.ByteVector
@@ -103,6 +103,26 @@ enum OnlineFrame:
   case Binary(val frame: BinaryFrame)
   case Offline
 
+private class Vec3d(val x: Double, val y: Double, val z: Double) {
+  def -(rhs: Vec3d): Vec3d = {
+    Vec3d(this.x - rhs.x, this.y - rhs.y, this.z - rhs.z)
+  }
+  def /(value: Double): Vec3d = {
+    Vec3d(this.x / value, this.y / value, this.z / value)
+  }
+  def abs(): Double = {
+    Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z)
+  }
+  def normalize(): Vec3d = {
+    this / this.abs()
+  }
+}
+private object Vec3d {
+  def fromSpigot(vec: SVec3d): Vec3d = {
+    Vec3d(vec.getX(), vec.getY(), vec.getZ())
+  }
+}
+
 def newServer(config: Config): IO[HttpServer] = {
   for {
     map <- MapRef.ofConcurrentHashMap[IO, String, Option[SQueue]]()
@@ -110,16 +130,19 @@ def newServer(config: Config): IO[HttpServer] = {
   } yield (HttpServer(codesMap = map, clientMap = clientMap, config))
 }
 
-def serPosDir(pos: Vector3, dir: Vector3): ByteVector = {
-  var byteBuffer = java.nio.ByteBuffer.allocate(48)
-  byteBuffer.putDouble(pos.getX())
-  byteBuffer.putDouble(pos.getY())
-  byteBuffer.putDouble(pos.getZ())
-  byteBuffer.putDouble(dir.getX())
-  byteBuffer.putDouble(dir.getY())
-  byteBuffer.putDouble(dir.getZ())
-  
-  ByteVector(byteBuffer)
+def serPosDir(pos: Vec3d, dir: Vec3d, bytes: ByteVector): ByteVector = {
+  var byteBuffer = java.nio.ByteBuffer
+    .allocate(48 + bytes.length.toInt)
+    .putDouble(pos.x)
+    .putDouble(pos.y)
+    .putDouble(pos.z)
+    .putDouble(dir.x)
+    .putDouble(dir.y)
+    .putDouble(dir.z)
+    .put(bytes.toByteBuffer)
+    .rewind()
+
+  ByteVector.view(byteBuffer)
 }
 
 class HttpServer(
@@ -173,18 +196,28 @@ class HttpServer(
       frame: ByteVector
   ): IO[Unit] = {
     for {
-      tuple <- IO.blocking({
-        val loc = speaker.getLocation()
-        val entities = Bukkit.getScheduler().callSyncMethod(pluginInstance(), new java.util.concurrent.Callable[ju.List[org.bukkit.entity.Entity]] {
-          override def call(): ju.List[entity.Entity] = speaker.getNearbyEntities(radius2, radius2, radius2)
-        }).get()
+      tuple <- IO({
+          val loc = speaker.getLocation()
+          val entities = Bukkit
+            .getScheduler()
+            .callSyncMethod(
+              pluginInstance(),
+              new java.util.concurrent.Callable[ju.List[
+                org.bukkit.entity.Entity
+              ]] {
+                override def call(): ju.List[entity.Entity] =
+                  speaker.getNearbyEntities(radius2, radius2, radius2)
+              }
+            )
+            .get()
 
-        (
-          entities.iterator().asScala.toSeq,
-          loc.toVector(),
-          loc.getDirection()
-        )
-      })
+          (
+            entities.iterator().asScala.toSeq,
+            Vec3d.fromSpigot(loc.toVector()),
+            Vec3d.fromSpigot(loc.getDirection())
+          )
+        }
+      )
       entities <- IO.pure(tuple._1)
       // the position of the speaker
       speakerPos <- IO.pure(tuple._2)
@@ -199,43 +232,48 @@ class HttpServer(
               for {
                 opt <- IO({
                   val loc = near.getLocation()
-                  val nearPos = loc.toVector()
-                  val nearDir = loc.getDirection()
+                  val nearPos = Vec3d.fromSpigot(loc.toVector())
+                  val nearDir = Vec3d.fromSpigot(loc.getDirection())
+
+                  val relativePos = speakerPos - nearPos
                   val nearUuid = near.getUniqueId()
 
                   if (
                     near.getUniqueId == speakerUuid ||
-                    (nearPos.distance(
-                      speakerPos
-                    ) < config.audioSettings.activationRadius)
+                    relativePos.abs() > config.audioSettings.activationRadius
                   ) {
                     None
                   } else {
-                    Some((nearUuid, nearPos, nearDir))
+                    Some((nearUuid, nearPos, nearDir, relativePos))
                   }
                 })
 
                 _ <- opt match {
-                  case Some((nearUuid, nearPos, nearDir)) =>
+                  case Some((nearUuid, nearPos, nearDir, relativePos)) =>
                     for {
                       clientVal <- clientMap(nearUuid).get
                       _ <- clientVal match {
-                        case Some(ClientState.Online(queue)) => for {
-                          // the position of the player relative to the speaker
-                          relativePos <- IO.pure(speakerPos.subtract(nearPos))
-                          // the direction of the player relative to the speaker
-                          relativeDir <- IO.pure(
-                            speakerDir.subtract(nearDir).normalize()
-                          )
-                          _ <- queue.offer(OnlineFrame.Binary(BinaryFrame(serPosDir(relativePos, relativeDir) ++ frame)))
-                        } yield ()
+                        case Some(ClientState.Online(queue)) =>
+                          for {
+                            // the direction of the player relative to the speaker
+                            relativeDir <- IO.pure(
+                              (speakerDir - nearDir).normalize()
+                            )
+                            _ <- queue.offer(
+                              OnlineFrame.Binary(
+                                BinaryFrame(
+                                  serPosDir(relativePos, relativeDir, frame)
+                                )
+                              )
+                            )
+                          } yield ()
                         case _ => IO.pure(())
                       }
                     } yield ()
                   case None => IO.pure(())
                 }
               } yield ()
-            case _ => m
+            case _ => IO.pure(())
           }
         } yield ()
       )
@@ -249,16 +287,24 @@ class HttpServer(
     rem.pull.uncons1.flatMap {
       case Some(frame: BinaryFrame, rem) =>
         Pull
-          .eval(speak(player, uuid, frame.data)) >> onReceivePull(player, uuid, rem)
-      case Some((_: Unit, rem)) =>
-        Pull.output1(TextFrame(playerUpdateJson(PlayerConnStatus.Offline.toUpdate()).toString)) >>
-        waitUntilOnlineF(
-          player.getUniqueId(),
-          rem.map {
-            case value: WebSocketFrame => value
-            case _: Unit               => ???
-          }
+          .eval(speak(player, uuid, frame.data)) >> onReceivePull(
+          player,
+          uuid,
+          rem
         )
+      case Some((_: Unit, rem)) =>
+        Pull.output1(
+          TextFrame(
+            playerUpdateJson(PlayerConnStatus.Offline.toUpdate()).toString
+          )
+        ) >>
+          waitUntilOnlineF(
+            player.getUniqueId(),
+            rem.map {
+              case value: WebSocketFrame => value
+              case _: Unit               => ???
+            }
+          )
       case None => Pull.eval(clientMap.unsetKey(uuid))
       case _    => Pull.done
     }
@@ -274,10 +320,15 @@ class HttpServer(
         stopQueue <- Queue.bounded[IO, Unit](1)
         uuid <- IO(player.getUniqueId())
       } yield (stopQueue, uuid))
-      .flatMap {
-        case (stopQueue, uuid) =>
-          onReceivePull(player, uuid, rem.merge(Stream.fromQueueUnterminated(stopQueue))).stream
-          .merge(toSendPull(queue, stopQueue).stream).pull.echo
+      .flatMap { case (stopQueue, uuid) =>
+        onReceivePull(
+          player,
+          uuid,
+          rem.merge(Stream.fromQueueUnterminated(stopQueue))
+        ).stream
+          .merge(toSendPull(queue, stopQueue).stream)
+          .pull
+          .echo
       }
   }
 
