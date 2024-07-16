@@ -6,7 +6,6 @@ import cats.effect.kernel.Resource
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import com.seraphwave.config._
-import com.seraphwave.server.newServer
 
 implicit val runtime: IORuntime = cats.effect.unsafe.IORuntime.global
 private var instance1: Plugin = null
@@ -37,7 +36,7 @@ class Plugin extends JavaPlugin {
   private def startHttp(config: Config): Unit = {
     {
       for {
-        server <- newServer(config)
+        server <- HttpServer.newServer(config)
         rsc <- IO({
           this.httpInstance1 = server
           val serverResource = server.startServer()

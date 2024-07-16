@@ -38,9 +38,12 @@ class JoinProx extends CommandExecutor {
           username = player.getName()
         )
       )
+      // tell the websocket server that the code was consumed.
       _ <- queue.offer(sessionInfo)
-      _ <- IO(container.set(key, PersistentDataType.BYTE_ARRAY, randomCode))
-      _ <- IO(player.sendMessage("You have joined proximity chat!"))
+      _ <- IO({
+        container.set(key, PersistentDataType.BYTE_ARRAY, randomCode)
+        player.sendMessage("You have joined proximity chat!")
+      })
     } yield (())
   }
   def onCommandPure(
