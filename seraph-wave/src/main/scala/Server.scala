@@ -5,6 +5,7 @@ import scala.jdk.CollectionConverters._
 import com.seraphwave.config._
 import com.seraphwave.data._
 import com.seraphwave.pluginInstance
+import com.seraphwave.utils._
 
 import cats.effect.IO
 import cats.data.Kleisli
@@ -34,7 +35,6 @@ import fs2.{Pipe, Stream, Pull, Chunk}
 import org.bukkit.entity.Player
 import org.bukkit.NamespacedKey
 import org.bukkit.persistence.PersistentDataType
-import org.bukkit.util.Vector as SVec3d
 
 import java.util.UUID
 import scodec.bits.ByteVector
@@ -103,26 +103,6 @@ enum OnlineFrame:
   case Binary(val frame: BinaryFrame)
   case Offline
 
-private class Vec3d(val x: Double, val y: Double, val z: Double) {
-  def -(rhs: Vec3d): Vec3d = {
-    Vec3d(this.x - rhs.x, this.y - rhs.y, this.z - rhs.z)
-  }
-  def /(value: Double): Vec3d = {
-    Vec3d(this.x / value, this.y / value, this.z / value)
-  }
-  def abs(): Double = {
-    Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z)
-  }
-  def normalize(): Vec3d = {
-    this / this.abs()
-  }
-}
-private object Vec3d {
-  def fromSpigot(vec: SVec3d): Vec3d = {
-    Vec3d(vec.getX(), vec.getY(), vec.getZ())
-  }
-}
-
 def newServer(config: Config): IO[HttpServer] = {
   for {
     map <- MapRef.ofConcurrentHashMap[IO, String, Option[SQueue]]()
@@ -130,27 +110,22 @@ def newServer(config: Config): IO[HttpServer] = {
   } yield (HttpServer(codesMap = map, clientMap = clientMap, config))
 }
 
-def serPosDir(pos: Vec3d, dir: Vec3d, bytes: ByteVector): ByteVector = {
-  var byteBuffer = java.nio.ByteBuffer
-    .allocate(48 + bytes.length.toInt)
-    .putDouble(pos.x)
-    .putDouble(pos.y)
-    .putDouble(pos.z)
-    .putDouble(dir.x)
-    .putDouble(dir.y)
-    .putDouble(dir.z)
-    .put(bytes.toByteBuffer)
-    .rewind()
-
-  ByteVector.view(byteBuffer)
-}
-
 class HttpServer(
     private val codesMap: MapRef[IO, String, Option[Option[SQueue]]],
     private val clientMap: MapRef[IO, UUID, Option[ClientState]],
     val config: Config
 ) {
-
+  def rotationUpdate(uuid: UUID, rotation: Vec3d): IO[Unit] = {
+    for {
+      value <- this.clientMap(uuid).get
+      _ <- value match {
+        case Some(ClientState.Online(value)) => for {
+          _ <- value.offer(OnlineFrame.Binary(BinaryFrame(serRotationUpdate(rotation))))
+        } yield ()
+        case _ => IO.pure(())
+      }
+    } yield ()
+  }
   def updateConnStatus(uuid: UUID, status: PlayerConnStatus): IO[Unit] = {
     status match {
       case PlayerConnStatus.Online =>
@@ -235,12 +210,12 @@ class HttpServer(
                   val nearPos = Vec3d.fromSpigot(loc.toVector())
                   val nearDir = Vec3d.fromSpigot(loc.getDirection())
 
-                  val relativePos = speakerPos - nearPos
+                  val relativePos = nearPos - speakerPos
                   val nearUuid = near.getUniqueId()
 
                   if (
                     near.getUniqueId == speakerUuid ||
-                    relativePos.abs() > config.audioSettings.activationRadius
+                    relativePos.abs > config.audioSettings.activationRadius
                   ) {
                     None
                   } else {
@@ -255,14 +230,10 @@ class HttpServer(
                       _ <- clientVal match {
                         case Some(ClientState.Online(queue)) =>
                           for {
-                            // the direction of the player relative to the speaker
-                            relativeDir <- IO.pure(
-                              (speakerDir - nearDir).normalize()
-                            )
                             _ <- queue.offer(
                               OnlineFrame.Binary(
                                 BinaryFrame(
-                                  serPosDir(relativePos, relativeDir, frame)
+                                  serPosDir(relativePos, speakerDir, speakerUuid, frame)
                                 )
                               )
                             )

@@ -3,6 +3,7 @@ import com.seraphwave.data.PlayerConnStatus
 
 import org.bukkit.event._
 import org.bukkit.event.player._
+import com.seraphwave.utils.Vec3d
 
 class EventListener extends Listener {
   @EventHandler
@@ -22,5 +23,10 @@ class EventListener extends Listener {
         PlayerConnStatus.Offline
       )
       .unsafeRunSync()
+  }
+  @EventHandler
+  def onPlayerMove(event: PlayerMoveEvent): Unit = {
+    val player = event.getPlayer()
+    httpInstance().rotationUpdate(player.getUniqueId(), Vec3d.fromSpigot(event.getTo().getDirection())).unsafeRunSync()
   }
 }
