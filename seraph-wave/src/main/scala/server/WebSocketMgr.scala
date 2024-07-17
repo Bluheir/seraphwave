@@ -211,12 +211,12 @@ class WebSocketMgr(
                   val nearPos = Vec3d.fromSpigot(loc.toVector())
                   val nearDir = Vec3d.fromSpigot(loc.getDirection())
 
-                  val relativePos = nearPos - speakerPos
+                  val relativePos = speakerPos - nearPos
                   val nearUuid = near.getUniqueId()
 
                   if (
                     near.getUniqueId == speakerUuid ||
-                    relativePos.abs > config.audioSettings.activationRadius
+                    relativePos.mag > config.audioSettings.activationRadius
                   ) {
                     None
                   } else {

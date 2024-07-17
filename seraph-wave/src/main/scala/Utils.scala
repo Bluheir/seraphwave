@@ -7,10 +7,12 @@ import java.nio.ByteBuffer
 
 class Vec3d(val x: Double, val y: Double, val z: Double) {
   def -(rhs: Vec3d): Vec3d = Vec3d(this.x - rhs.x, this.y - rhs.y, this.z - rhs.z)
+  // scalar division
   def /(value: Double): Vec3d = Vec3d(this.x / value, this.y / value, this.z / value)
-  def abs: Double = Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z)
-  def norm: Vec3d = this / this.abs
+  def mag: Double = Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z)
+  def norm: Vec3d = this / this.mag
 }
+
 object Vec3d {
   def fromSpigot(vec: SVec3d): Vec3d = {
     Vec3d(vec.getX(), vec.getY(), vec.getZ())
