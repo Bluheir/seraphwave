@@ -51,6 +51,16 @@ class WebSocketMgr(
     val config: Config
 ) {
 
+  /** Determines if a player with the given UUID is connected.
+    *
+    * @param uuid
+    *   The UUID of the player.
+    * @return
+    */
+  def isConnected(uuid: UUID): IO[Boolean] = for {
+    v <- this.clientMap(uuid).get
+  } yield (v.isDefined)
+
   /** Removes a temporary code, and returns the success value.
     *
     * @param code
@@ -173,7 +183,7 @@ class WebSocketMgr(
       speaker: Player,
       speakerUuid: UUID,
       frame: ByteVector
-  ): IO[Unit] = {
+  ): IO[Unit] =
     for {
       tuple <- IO({
         val loc = speaker.getLocation()
@@ -255,7 +265,6 @@ class WebSocketMgr(
         } yield ()
       )
     } yield ()
-  }
 
   private def onReceivePull(
       player: Player,
@@ -279,8 +288,7 @@ class WebSocketMgr(
               case _: Unit               => sys.error("unreachable")
             }
           )
-      case None => Pull.eval(clientMap.unsetKey(uuid))
-      case _    => Pull.done
+      case _ => Pull.eval(clientMap.unsetKey(uuid))
     }
   }
 
@@ -445,11 +453,7 @@ class WebSocketMgr(
                   if (isOnline && isCorrect) {
                     for {
                       queue <- Queue.bounded[IO, OnlineFrame](4096)
-                      _ <- clientMap.setKeyValue(
-                        uuid,
-                        ClientState.Online(queue)
-                      )
-                    } yield Right(Right((player, queue)))
+                    } yield Right(Right((player, uuid, queue)))
                   } else if (isCorrect) {
                     val tf = TextFrame(
                       playerUpdateJson(PlayerConnStatus.Offline.toUpdate())
@@ -466,7 +470,7 @@ class WebSocketMgr(
             case None => {
               IO.pure(
                 Left(
-                  TextFrame(responseErrorJson(errPlayerNotExists).toString())
+                  TextFrame(responseErrorJson(errSessionKey).toString())
                 )
               )
             }
@@ -474,12 +478,12 @@ class WebSocketMgr(
         } yield (result)
 
         Pull.eval(effect).flatMap {
-          case Right(Right((player, queue))) =>
+          case Right(Right((player, uuid, queue))) =>
             Pull.output1(
               TextFrame(
                 playerUpdateJson(PlayerConnStatus.Online.toUpdate()).toString
               )
-            ) >> handlePlayer(player, queue, rem)
+            ) >> handlePlayerCheckOnline(player, uuid, queue, rem)
           case Right(Left((tf, uuid))) =>
             Pull.output1(tf) >> waitUntilOnlineR(uuid, rem)
           case Left(tf) => Pull.output1(tf)
@@ -487,4 +491,22 @@ class WebSocketMgr(
       }
     }
   }
+
+  private def handlePlayerCheckOnline(
+      player: Player,
+      uuid: UUID,
+      queue: Queue[IO, OnlineFrame],
+      rem: Stream[IO, WebSocketFrame]
+  ): Pull[IO, WebSocketFrame, Unit] =
+    Pull.eval(isConnected(uuid)).flatMap {
+      case true =>
+        Pull.output1(TextFrame(responseErrorJson(errCodeConsumed).toString()))
+      case false =>
+        Pull.eval(
+          clientMap.setKeyValue(
+            uuid,
+            ClientState.Online(queue)
+          )
+        ) >> handlePlayer(player, queue, rem)
+    }
 }

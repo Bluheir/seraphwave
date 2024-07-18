@@ -57,21 +57,34 @@ class JoinProx extends CommandExecutor {
         args.headOption match {
           case Some(code) =>
             for {
-              removeCode <- httpInstance().removeCode(code)
-              _ <- removeCode match {
-                case CodeRemoval.Success(queue) => storeCode(player, queue)
-                case CodeRemoval.NotExists =>
+              connected <- httpInstance().isConnected(player.getUniqueId())
+              _ <- connected match {
+                case true =>
                   IO(
                     player.sendMessage(
-                      s"${ChatColor.RED}That code does not exist!"
+                      s"${ChatColor.RED}You cannot consume a code while connected to proximity chat."
                     )
                   )
-                case CodeRemoval.NotConnected =>
-                  IO(
-                    player.sendMessage(
-                      s"${ChatColor.RED}Do not close the browser tab between generating the code and invoking this command."
-                    )
-                  )
+                case false =>
+                  for {
+                    removeCode <- httpInstance().removeCode(code)
+                    _ <- removeCode match {
+                      case CodeRemoval.Success(queue) =>
+                        storeCode(player, queue)
+                      case CodeRemoval.NotExists =>
+                        IO(
+                          player.sendMessage(
+                            s"${ChatColor.RED}That code does not exist!"
+                          )
+                        )
+                      case CodeRemoval.NotConnected =>
+                        IO(
+                          player.sendMessage(
+                            s"${ChatColor.RED}Do not close the browser tab between generating the code and invoking this command."
+                          )
+                        )
+                    }
+                  } yield ()
               }
             } yield true
           case None =>

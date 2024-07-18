@@ -37,7 +37,6 @@ val errCodeConsumed = ResponseError(
   msg = "code already consumed by another client"
 )
 val errSessionKey = ResponseError(code = 2, msg = "incorrect session key")
-val errPlayerNotExists = ResponseError(code = 3, msg = "player does not exist")
 
 case class SessionInfo(
     val sessionCode: Array[Byte],
