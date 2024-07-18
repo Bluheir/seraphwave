@@ -19,6 +19,8 @@
     "@tailwindcss/typography": "^0.5.13",
     "@types/eslint": "^8.56.7",
     "@types/lodash-es": "^4.17.12",
+    "@types/node": "^20.14.10",
+    "@vitejs/plugin-basic-ssl": "^1.1.0",
     "autoprefixer": "latest",
     "daisyui": "latest",
     "eslint": "^9.0.0",
@@ -35,13 +37,23 @@
     "tslib": "^2.4.1",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.0.0-alpha.20",
-    "vite": "^5.0.3"
+    "vite": "^5.0.3",
+    "vite-plugin-top-level-await": "^1.4.1",
+    "vite-plugin-wasm": "^3.3.0"
   },
   "type": "module",
   "dependencies": {
+    "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
     "bits-ui": "^0.21.11",
+    "buffer": "^6.0.3",
+    "events": "^3.3.0",
+    "extendable-media-recorder": "^9.2.8",
+    "extendable-media-recorder-wav-encoder": "^7.0.113",
     "lodash-es": "^4.17.21",
     "lucide-svelte": "^0.399.0",
-    "svelte-sonner": "^0.3.25"
+    "opusscript": "git://github.com/Bluheir/opusscript",
+    "process": "^0.11.10",
+    "svelte-sonner": "^0.3.25",
+    "util": "^0.12.5"
   }
 }
