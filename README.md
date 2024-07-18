@@ -41,3 +41,6 @@ gradle build
 ```
 
 The resultant plugin jar file will be located in `./seraph-wave/build/libs`.
+
+## License
+This project is licensed under the terms of the Apache-2.0 license. Refer to [LICENSE.md](./LICENSE.md).
