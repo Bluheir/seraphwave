@@ -13,7 +13,6 @@ class ServerConfig(
     val port: Int
 )
 class ServerMetaInfo(
-  val altAccounts: Boolean,
   val welcomeMsg: String,
   val webSocketUrl: String,
 )
@@ -37,7 +36,6 @@ def fromFileConfig(config: FileConfiguration): Config = {
       activationRadius = config.getDouble("audio-settings.activation-radius", 30.0)
     ),
     metaInfo = ServerMetaInfo(
-      altAccounts = config.getBoolean("meta-info.alt-accounts", true),
       welcomeMsg = config.getString("meta-info.welcome-msg", "Welcome to proximity chat!"),
       webSocketUrl = webSocketUrl
     ),

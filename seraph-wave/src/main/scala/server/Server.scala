@@ -21,7 +21,7 @@ import io.circe._
 import java.util.UUID
 
 def metaJson(meta: ServerMetaInfo): Json =
-  json"""{"welcomeMsg": ${meta.welcomeMsg}, "altAccounts": ${meta.altAccounts}, "webSocketUrl": ${meta.webSocketUrl}}"""
+  json"""{"welcomeMsg": ${meta.welcomeMsg}, "webSocketUrl": ${meta.webSocketUrl}}"""
 
 def codeJson(code: String): Json =
   json"""{"code": ${code}}"""

@@ -9,9 +9,6 @@ http-server:
   websocket-url: "auto"
 
 meta-info:
-  # if alt accounts should be supported
-  alt-accounts: true
-
   # the welcome message players will see when accessing the web GUI
   welcome-msg: Welcome to proximity chat!
 
