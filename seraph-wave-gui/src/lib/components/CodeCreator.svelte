@@ -7,6 +7,8 @@
 	export let codeGen: CreateCode
 
 	let code: string | undefined = undefined
+
+	export let onGenerate: (code: string) => Promise<void>
 </script>
 
 <div class="prose bg-base-200 p-9 rounded-md shadow">
@@ -18,7 +20,7 @@
 	{:else}
 		<h1>{welcomeMsg}</h1>
 		<p>To use proximity chat on this server, you will need to generate a code.</p>
-		<button class="btn btn-primary" on:click={async () => {code = await codeGen.createCode()}}
+		<button class="btn btn-primary" on:click={async () => {code = await codeGen.createCode(); await onGenerate(code) }}
 			>Generate a code</button
 		>
 	{/if}
