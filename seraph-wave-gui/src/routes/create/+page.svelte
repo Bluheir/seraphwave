@@ -11,7 +11,7 @@
 		client.onSessionCode(async (sessionInfo) => {
 			$clientInstance = client
 			const newval = data.accounts.set(sessionInfo.uuid, sessionInfo)
-			localStorage.setItem("accounts", JSON.stringify(newval))
+			localStorage.setItem("accounts", JSON.stringify(Object.fromEntries(newval.entries())))
 			data.accounts = newval
 			await goto(`/account?${new URLSearchParams({ uuid: sessionInfo.uuid })}`)
 		})
