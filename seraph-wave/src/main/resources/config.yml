@@ -12,7 +12,7 @@ http-server:
   https: true
 
   # the URL for the WebSocket server. modify this when behind an HTTP proxy such as nginx.
-  websocket-url: "auto"
+  websocket-url: "gateway"
 
 meta-info:
   # the welcome message players will see when accessing the web GUI.
