@@ -66,25 +66,28 @@ export type AudioInfoParams = {
 	bitDepth?: number
 }
 
-export type ProtocolError = {
-	/**
-	 * The temporary code does not exist.
-	 */
-	errorCode: 0,
-	msg: string
-} | {
-	/**
-	 * The code was already consumed by another client.
-	 */
-	errorCode: 1,
-	msg: string
-} | {
-	/**
-	 * Incorrect session key.
-	 */
-	errorCode: 2,
-	msg: string
-}
+export type ProtocolError =
+	| {
+			/**
+			 * The temporary code does not exist.
+			 */
+			errorCode: 0
+			msg: string
+	  }
+	| {
+			/**
+			 * The code was already consumed by another client.
+			 */
+			errorCode: 1
+			msg: string
+	  }
+	| {
+			/**
+			 * Incorrect session key.
+			 */
+			errorCode: 2
+			msg: string
+	  }
 
 export class AudioInfo {
 	readonly sampleRate: number
@@ -178,14 +181,29 @@ export class AudioManager {
 		const mediaRecorder = f(stream)
 
 		mediaRecorder.ondataavailable = async (event) => {
-			const buffer = await event.data.arrayBuffer()
+			let buffer = await event.data.arrayBuffer()
 
-			// skip the first packet that contains the 44 byte WAV header
 			if (buffer.byteLength === AUDIO_PARAMS.packetSize) {
-				//const encoded = this.codec.encode(Buffer.from(buffer), frameSize).buffer
-				const encoded = buffer
-				await client.send(encoded)
+			} else if (buffer.byteLength === AUDIO_PARAMS.packetSize / 2) {
+				// convert 1 channel to 2 channel
+				const dataView = new DataView(buffer)
+				const newBuffer = new Uint16Array(buffer.byteLength)
+
+				for (let i = 0; i < buffer.byteLength / 2; i++) {
+					const value = dataView.getUint16(i, true)
+					newBuffer[i] = value
+					newBuffer[i + 1] = value
+				}
+
+				buffer = newBuffer.buffer
+			} else {
+				// skip the first packet that contains the 44 byte WAV header
+				return
 			}
+
+			//const encoded = this.codec.encode(Buffer.from(buffer), frameSize).buffer
+			const encoded = buffer
+			await client.send(encoded)
 		}
 
 		mediaRecorder.start(AUDIO_PARAMS.msPerBuf)
