@@ -19,6 +19,7 @@ import io.circe.literal._
 import io.circe._
 
 import java.util.UUID
+import javax.net.ssl.SSLContext
 
 def metaJson(meta: ServerMetaInfo): Json =
   json"""{"welcomeMsg": ${meta.welcomeMsg}, "webSocketUrl": ${meta.webSocketUrl}}"""
@@ -100,11 +101,17 @@ class HttpServer private (
       "/" -> route(ws)
     ).orNotFound
 
-  def startServer() =
-    BlazeServerBuilder[IO]
+  def startServer(sslContext: Option[SSLContext]) = sslContext match {
+    case Some(value) => BlazeServerBuilder[IO]
+      .bindHttp(port = config.httpServer.port, host = config.httpServer.host)
+      .withHttpWebSocketApp(ws => app(ws))
+      .withSslContext(value)
+      .resource
+    case None => BlazeServerBuilder[IO]
       .bindHttp(port = config.httpServer.port, host = config.httpServer.host)
       .withHttpWebSocketApp(ws => app(ws))
       .resource
+  }
 }
 
 object HttpServer {

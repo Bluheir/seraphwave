@@ -1,17 +1,23 @@
 http-server:
-  # the IP address to host the HTTP and WebSocket server on.
-  host: localhost
+  # the IP address to host the HTTP server on.
+  host: 0.0.0.0
 
-  # the port to host the HTTP and WebSocket server on.
+  # the port to host the HTTP server on.
   port: 65437
 
-  # the URL for the WebSocket server. modify this for nginx servers
+  # whether to use HTTPS for the HTTP server. this should only be disabled
+  # when serving the HTTP server behind a proxy such as nginx. this is because
+  # browsers do not allow accessing the microphone when the web page was not
+  # served under HTTPS.
+  https: true
+
+  # the URL for the WebSocket server. modify this when behind an HTTP proxy such as nginx.
   websocket-url: "auto"
 
 meta-info:
-  # the welcome message players will see when accessing the web GUI
+  # the welcome message players will see when accessing the web GUI.
   welcome-msg: Welcome to proximity chat!
 
 audio-settings:
   # how far away two players must be from each other (in blocks) to receive audio packets.
-  activation-radius: 30
+  activation-radius: 40

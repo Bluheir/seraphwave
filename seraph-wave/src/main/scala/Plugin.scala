@@ -6,6 +6,7 @@ import cats.effect.kernel.Resource
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import com.seraphwave.config._
+import com.seraphwave.config.CertUtils.getOrCreateCert
 
 implicit val runtime: IORuntime = cats.effect.unsafe.IORuntime.global
 private var instance1: Plugin = null
@@ -37,9 +38,13 @@ class Plugin extends JavaPlugin {
     {
       for {
         server <- HttpServer.newServer(config)
+        sslContext <- config.httpServer.https match {
+          case true => getOrCreateCert().map(Some.apply)
+          case false => IO.pure(None)
+        }
         rsc <- IO({
           this.httpInstance1 = server
-          val serverResource = server.startServer()
+          val serverResource = server.startServer(sslContext)
           this.serverResource = Some(serverResource)
           serverResource
         })

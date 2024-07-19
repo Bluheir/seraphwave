@@ -43,6 +43,9 @@ dependencies {
 
     implementation "org.typelevel:cats-core_3:2.12.0"
     implementation "org.typelevel:cats-effect_3:3.5.4"
+
+    implementation "org.bouncycastle:bcpkix-jdk18on:1.78.1"
+    implementation "org.bouncycastle:bcprov-jdk18on:1.78.1"
 }
 
 
@@ -82,7 +85,7 @@ processResources {
         expand props
     }
 }
-task theJar(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
+task shadowJar(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
     // Ensure the task includes the main source set's output
     from(sourceSets.main.output)
     
@@ -93,11 +96,11 @@ task theJar(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
 
     // Include dependencies
     configurations = [project.configurations.runtimeClasspath]
-    minimize()
+    dependencies {
+        exclude("org.spigotmc:spigot-api")
+    }
 }
 
-// Ensure that 'build' depends on 'theJar'
-
 tasks.build {
-    dependsOn theJar
+    dependsOn shadowJar
 }
