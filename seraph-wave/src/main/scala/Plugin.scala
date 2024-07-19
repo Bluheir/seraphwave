@@ -9,15 +9,14 @@ import com.seraphwave.config._
 import com.seraphwave.config.CertUtils.getOrCreateCert
 
 implicit val runtime: IORuntime = cats.effect.unsafe.IORuntime.global
-private var instance1: Plugin = null
 
 class Plugin extends JavaPlugin {
   private var serverResource: Option[Resource[IO, org.http4s.server.Server]] =
     None
-  var httpInstance1: HttpServer = null
+  private var httpInstance1: HttpServer = null
 
   override def onEnable(): Unit = {
-    instance1 = this
+    Plugin.instance1 = this
     // onEnable
     this.saveDefaultConfig()
 
@@ -58,6 +57,9 @@ class Plugin extends JavaPlugin {
   }
   override def onDisable(): Unit = {}
 }
+object Plugin {
+  private var instance1: Plugin = null
+  def instance: Plugin = instance1
+  def httpInstance = instance.httpInstance1
+}
 
-def pluginInstance(): Plugin = instance1
-def httpInstance(): HttpServer = pluginInstance().httpInstance1

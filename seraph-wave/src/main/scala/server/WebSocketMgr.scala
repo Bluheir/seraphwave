@@ -190,7 +190,7 @@ class WebSocketMgr(
         val entities = Bukkit
           .getScheduler()
           .callSyncMethod(
-            pluginInstance(),
+            Plugin.instance,
             new Callable[JList[Entity]] {
               override def call: JList[Entity] =
                 speaker.getNearbyEntities(radius2, radius2, radius2)
@@ -324,7 +324,7 @@ class WebSocketMgr(
       _ <- queue.take
       queue <- Queue.bounded[IO, OnlineFrame](4096)
       _ <- clientMap.setKeyValue(uuid, ClientState.Online(queue))
-      player <- IO(pluginInstance().getServer().getPlayer(uuid))
+      player <- IO(Plugin.instance.getServer().getPlayer(uuid))
       tf <- IO.pure(
         TextFrame(
           playerUpdateJson(
@@ -399,7 +399,7 @@ class WebSocketMgr(
                       ClientState.Online(queue)
                     )
                     player <- IO(
-                      pluginInstance().getServer().getPlayer(info.uuid)
+                      Plugin.instance.getServer().getPlayer(info.uuid)
                     )
                   } yield (Right((info, player, queue)))
                 }
@@ -434,14 +434,14 @@ class WebSocketMgr(
       }
       case HelloMsgData.FullCode(sessionCode, uuid) => {
         val effect = for {
-          player <- IO(Option(pluginInstance().getServer().getPlayer(uuid)))
+          player <- IO(Option(Plugin.instance.getServer().getPlayer(uuid)))
           result <- player match {
             case Some(player) =>
               for {
                 isOnline <- IO(player.isOnline())
                 container <- IO(player.getPersistentDataContainer())
                 key <- IO.pure(
-                  NamespacedKey(pluginInstance(), "vc-access-code")
+                  NamespacedKey(Plugin.instance, "vc-access-code")
                 )
                 value <- IO(
                   Option(container.get(key, PersistentDataType.BYTE_ARRAY))

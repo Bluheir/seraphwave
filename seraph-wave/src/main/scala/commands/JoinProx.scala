@@ -26,7 +26,7 @@ class JoinProx extends CommandExecutor {
   }
 
   def storeCode(player: Player, queue: SQueue): IO[Unit] = {
-    val key = NamespacedKey(pluginInstance(), "vc-access-code")
+    val key = NamespacedKey(Plugin.instance, "vc-access-code")
 
     for {
       container <- IO(player.getPersistentDataContainer())
@@ -57,7 +57,7 @@ class JoinProx extends CommandExecutor {
         args.headOption match {
           case Some(code) =>
             for {
-              connected <- httpInstance().isConnected(player.getUniqueId())
+              connected <- Plugin.httpInstance.isConnected(player.getUniqueId())
               _ <- connected match {
                 case true =>
                   IO(
@@ -67,7 +67,7 @@ class JoinProx extends CommandExecutor {
                   )
                 case false =>
                   for {
-                    removeCode <- httpInstance().removeCode(code)
+                    removeCode <- Plugin.httpInstance.removeCode(code)
                     _ <- removeCode match {
                       case CodeRemoval.Success(queue) =>
                         storeCode(player, queue)
