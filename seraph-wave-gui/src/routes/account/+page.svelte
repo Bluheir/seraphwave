@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Navbar from "$lib/components/Navbar.svelte"
-	import type { AccountInfo } from "../../+layout"
+	import type { AccountInfo } from "../+layout"
 	import type { PageData } from "./$types"
 	import { apiImpl, AudioManager, type VoiceClient, clientInstance } from "$lib/api"
 

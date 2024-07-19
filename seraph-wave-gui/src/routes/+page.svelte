@@ -11,7 +11,7 @@
 <Navbar />
 <div class="grid gap-1 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 text-base-content auto-rows-max mx-1">
     {#each accountList as account}
-    <a class="bg-base-200 p-4 prose rounded-lg flex items-center flex-col hover:bg-base-300 transition" href="/account/{account.uuid}">
+    <a class="bg-base-200 p-4 prose rounded-lg flex items-center flex-col hover:bg-base-300 transition" href="/account?{new URLSearchParams({ uuid: account.uuid })}">
         <img src="https://crafatar.com/avatars/{account.uuid}" alt=""/>
         <h3 class="overflow-x-hidden">{account.username}</h3>
     </a>

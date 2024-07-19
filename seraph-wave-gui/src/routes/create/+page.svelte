@@ -13,7 +13,7 @@
 			const newval = data.accounts.set(sessionInfo.uuid, sessionInfo)
 			localStorage.setItem("accounts", JSON.stringify(newval))
 			data.accounts = newval
-			await goto(`/account/${sessionInfo.uuid}`)
+			await goto(`/account?${new URLSearchParams({ uuid: sessionInfo.uuid })}`)
 		})
 	}
 </script>
