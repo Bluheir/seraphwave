@@ -87,11 +87,15 @@ class HttpServer private (
     case request @ GET -> Root => static("index.html", request)
     case request @ GET -> subDirs => {
       val filePath = subDirs.segments.mkString("/")
-      val fileExtensions = List(".js", ".css", ".html", ".png", ".svg", ".wasm")
-      if (fileExtensions.exists(filePath.endsWith)) {
-        static(filePath, request)
+      if(filePath.contains(".")) {
+        val fileExtensions = List(".js", ".css", ".html", ".png", ".svg", ".wasm")
+        if (fileExtensions.exists(filePath.endsWith)) {
+          static(filePath, request)
+        } else {
+          NotFound()
+        }
       } else {
-        NotFound()
+        static(filePath + ".html", request)
       }
     }
   }
