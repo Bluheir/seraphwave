@@ -138,16 +138,23 @@ export interface FullApi extends CreateCode, GetMetaInfo, VoiceClientMgr {}
 export const apiImpl: FullApi = new MainImpl()
 
 export let clientInstance: Writable<VoiceClient | undefined> = writable(undefined)
+export let audioInstance: Writable<AudioManager | undefined> = writable(undefined)
 
 export class AudioManager {
 	private audioCtx: AudioContext
 	private codec: OpusScript
 	private jitters: Map<bigint, JitterBuffer>
+	private mediaRecorder: MediaRecorder | undefined
+	private inGainNode: GainNode | undefined
+	private outGainNode: GainNode
 
 	private constructor(audioCtx: AudioContext, codec: OpusScript) {
 		this.audioCtx = audioCtx
 		this.jitters = new Map()
 		this.codec = codec
+		this.mediaRecorder = undefined
+		this.outGainNode = audioCtx.createGain()
+		this.outGainNode.connect(this.audioCtx.destination)
 	}
 
 	static async createAudioMgr(
@@ -168,19 +175,26 @@ export class AudioManager {
 	}
 
 	private async startAudio(f: (s: MediaStream) => MediaRecorder, client: VoiceClient) {
-		const stream = await navigator.mediaDevices.getUserMedia({
+		const baseStream = await navigator.mediaDevices.getUserMedia({
 			audio: {
 				sampleRate: AUDIO_PARAMS.sampleRate,
 				channelCount: AUDIO_PARAMS.channelCount,
 				sampleSize: AUDIO_PARAMS.bitDepth,
-				echoCancellation: true,
+				echoCancellation: false,
+				
 			},
 			video: false,
 		})
+		const source = this.audioCtx.createMediaStreamSource(baseStream)
+		this.inGainNode = this.audioCtx.createGain()
 
-		const mediaRecorder = f(stream)
+		source.connect(this.inGainNode)
 
-		mediaRecorder.ondataavailable = async (event) => {
+		const destination = this.audioCtx.createMediaStreamDestination()
+		this.inGainNode.connect(destination)
+
+		this.mediaRecorder = f(destination.stream)
+		this.mediaRecorder.ondataavailable = async (event) => {
 			let buffer = await event.data.arrayBuffer()
 
 			if (buffer.byteLength === AUDIO_PARAMS.packetSize) {
@@ -206,8 +220,23 @@ export class AudioManager {
 			await client.send(encoded)
 		}
 
-		mediaRecorder.start(AUDIO_PARAMS.msPerBuf)
+		this.mediaRecorder.start(AUDIO_PARAMS.msPerBuf)
 	}
+	stopAudio() {
+		if(this.mediaRecorder) {
+			this.mediaRecorder.ondataavailable = () => { }
+			this.mediaRecorder = undefined
+		}
+	}
+	setInGain(gain: number) {
+		if(this.inGainNode) {
+			this.inGainNode.gain.value = gain
+		}
+	}
+	setOutGain(gain: number) {
+		this.outGainNode.gain.value = gain
+	}
+
 	private async onAudio(packet: AudioEvent) {
 		switch (packet.type) {
 			case "audioPacket":
@@ -226,6 +255,7 @@ export class AudioManager {
 
 		if (!jitter) {
 			jitter = new JitterBuffer(this.audioCtx, this.codec)
+			jitter.connect(this.outGainNode)
 			this.jitters.set(packet.uuid, jitter)
 		}
 
@@ -272,10 +302,11 @@ class JitterBuffer {
 			rolloffFactor: 1.3,
 			refDistance: 1,
 		})
-
-		this.panner.connect(this.audioCtx.destination)
 	}
 
+	connect(node: AudioNode): AudioNode {
+		return this.panner.connect(node)
+	}
 	pushPacket(packet: AudioPacket) {
 		const currentTime = this.audioCtx.currentTime
 		const diff = (currentTime - this.lastPlayed) * 1000
