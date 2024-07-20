@@ -7,6 +7,8 @@
 	import { MediaRecorder, register } from "extendable-media-recorder"
 	import { connect } from "extendable-media-recorder-wav-encoder"
 	import { onMount } from "svelte"
+	import { json } from "stream/consumers"
+	import { goto } from "$app/navigation"
 
 	export let data: PageData & { accountInfo: AccountInfo }
 	let inVolume: number = 100
@@ -30,8 +32,20 @@
 			$clientInstance = client
 			await startConn(client)
 		})
-		client.onError(e => {
+		client.onError(async e => {
 			console.log(e)
+
+			switch(e.errorCode) {
+				// an invalid session code implies that the session code has expired or was replaced by another
+				case 2:
+					// delete the expired session code
+					data.accounts.delete(uuid)
+					localStorage.setItem("accounts", JSON.stringify(Object.entries(data.accounts.entries())))
+					await goto("/")
+					break
+				default:
+					break
+			}
 		})
 		client.onClose(() => {
 			if($audioInstance) {
