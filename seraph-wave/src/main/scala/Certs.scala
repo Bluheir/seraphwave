@@ -24,14 +24,13 @@ import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 
 import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
 import java.nio.file.Paths
 import java.nio.charset.StandardCharsets
 
 import cats.effect.IO
-import cats.effect.kernel.Resource
+
 import com.seraphwave.Plugin
+import com.seraphwave.utils.{outputStream, inputStream}
 
 object CertUtils {
   Security.addProvider(BouncyCastleProvider())
@@ -65,20 +64,6 @@ object CertUtils {
 
     val certHolder = certBuilder.build(contentSigner)
     JcaX509CertificateConverter().setProvider("BC").getCertificate(certHolder)
-
-  private def outputStream(file: File): Resource[IO, FileOutputStream] =
-    Resource.make {
-      IO.blocking(FileOutputStream(file))
-    } { outStream =>
-      IO.blocking(outStream.close()).handleErrorWith(_ => IO.unit)
-    }
-  private def inputStream(file: File): Resource[IO, FileInputStream] =
-    Resource.make {
-      IO.blocking(FileInputStream(file))
-    } { inStream =>
-      IO.blocking(inStream.close()).handleErrorWith(_ => IO.unit)
-    }
-
   private def createNewCert(
       keyFile: File,
       certFile: File
