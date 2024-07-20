@@ -59,7 +59,12 @@ java {
     }
 }
 
+task deleteBad(type: Delete) {
+    delete "build/svelte-build"
+}
+
 task copySvelteClientFiles(type: Copy) {
+    dependsOn deleteBad
     from ("../seraph-wave-gui/build")
     into ("build/svelte-build")
 }
