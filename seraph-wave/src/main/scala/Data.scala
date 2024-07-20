@@ -93,6 +93,11 @@ def responseErrorJson(data: ResponseError): Json = {
 def decodeUuid(c: ACursor) = {
   for {
     uuid <- c.as[String]
+    uuid <- decodeUUIDInner(uuid, c)
+  } yield (uuid)
+}
+def decodeUUIDInner(uuid: String, c: ACursor) = {
+  for {
     uuid <-
       try {
         Right(UUID.fromString(uuid))
@@ -104,9 +109,10 @@ def decodeUuid(c: ACursor) = {
               c
             )
           )
-      }
-  } yield (uuid)
+    }
+  } yield(uuid)
 }
+
 def decodeBase64(c: ACursor) = {
   for {
     base64str <- c.as[String]

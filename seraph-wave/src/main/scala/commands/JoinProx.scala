@@ -5,14 +5,13 @@ import org.bukkit.entity.Player
 import cats.effect.unsafe.IORuntime
 import cats.effect.IO
 import org.bukkit.ChatColor
-import org.bukkit.NamespacedKey
 import com.seraphwave._
-import org.bukkit.persistence.PersistentDataType
 
 import cats.effect.std.{SecureRandom}
 import com.seraphwave.data.SessionInfo
 import com.seraphwave.server.CodeRemoval
 import com.seraphwave.server.SQueue
+import com.seraphwave.Plugin.codeMgr
 
 implicit val runtime: IORuntime = cats.effect.unsafe.IORuntime.global
 
@@ -26,10 +25,7 @@ class JoinProx extends CommandExecutor {
   }
 
   def storeCode(player: Player, queue: SQueue): IO[Unit] = {
-    val key = NamespacedKey(Plugin.instance, "vc-access-code")
-
     for {
-      container <- IO(player.getPersistentDataContainer())
       randomCode <- randomCode()
       sessionInfo <- IO(
         SessionInfo(
@@ -38,12 +34,10 @@ class JoinProx extends CommandExecutor {
           username = player.getName()
         )
       )
+      _ <- codeMgr.set(sessionInfo.uuid, sessionInfo.sessionCode)
       // tell the websocket server that the code was consumed.
       _ <- queue.offer(sessionInfo)
-      _ <- IO({
-        container.set(key, PersistentDataType.BYTE_ARRAY, randomCode)
-        player.sendMessage("You have joined proximity chat!")
-      })
+      _ <- IO(player.sendMessage("You have joined proximity chat!"))
     } yield (())
   }
   def onCommandPure(

@@ -26,8 +26,6 @@ import java.util.concurrent.Callable
 
 import org.bukkit.entity.{Player, Entity}
 import org.bukkit.Bukkit
-import org.bukkit.NamespacedKey
-import org.bukkit.persistence.PersistentDataType
 
 import scodec.bits.ByteVector
 
@@ -434,46 +432,23 @@ class WebSocketMgr(
       }
       case HelloMsgData.FullCode(sessionCode, uuid) => {
         val effect = for {
-          player <- IO(Option(Plugin.instance.getServer().getPlayer(uuid)))
+          player <- IO(Plugin.instance.getServer().getOfflinePlayer(uuid))
+          contained <- Plugin.codeMgr.contains(uuid, sessionCode)
           result <- player match {
-            case Some(player) =>
-              for {
-                isOnline <- IO(player.isOnline())
-                container <- IO(player.getPersistentDataContainer())
-                key <- IO.pure(
-                  NamespacedKey(Plugin.instance, "vc-access-code")
-                )
-                value <- IO(
-                  Option(container.get(key, PersistentDataType.BYTE_ARRAY))
-                    .getOrElse(Array[Byte]())
-                )
-                isCorrect <- IO.pure(value.sameElements(sessionCode))
-
-                response <-
-                  if (isOnline && isCorrect) {
-                    for {
-                      queue <- Queue.bounded[IO, OnlineFrame](4096)
-                    } yield Right(Right((player, uuid, queue)))
-                  } else if (isCorrect) {
-                    val tf = TextFrame(
-                      playerUpdateJson(PlayerConnStatus.Offline.toUpdate())
-                        .toString()
-                    )
-                    IO.pure(Right(Left((tf, uuid))))
-                  } else {
-                    val tf = TextFrame(
-                      responseErrorJson(errSessionKey).toString()
-                    )
-                    IO(Left(tf))
-                  }
-              } yield (response)
-            case None => {
-              IO.pure(
-                Left(
-                  TextFrame(responseErrorJson(errSessionKey).toString())
-                )
+            case onlinePlayer: Player if contained => for {
+              queue <- Queue.bounded[IO, OnlineFrame](4096)
+            } yield Right(Right((onlinePlayer, uuid, queue)))
+            case _ if contained => {
+              val tf = TextFrame(
+                playerUpdateJson(PlayerConnStatus.Offline.toUpdate())
+                  .toString()
               )
+              IO.pure(Right(Left((tf, uuid))))
             }
+            case _ =>
+              IO.pure(
+                Left(TextFrame(responseErrorJson(errSessionKey).toString))
+              )
           }
         } yield (result)
 
