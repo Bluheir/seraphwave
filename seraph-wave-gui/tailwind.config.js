@@ -8,15 +8,8 @@ export default {
 		themes: [
 			"light",
 			"dark",
+			"cupcake",
 			"synthwave",
-			"cyberpunk",
-			"wireframe",
-			"night",
-			"luxury",
-			"sunset",
-			"coffee",
-			"wireframe-dark",
-			"black",
 			{
 				"cyberpunk-dark": {
 					...require("daisyui/src/theming/themes")["cyberpunk"],
@@ -24,7 +17,7 @@ export default {
 				},
 				"base": {
 					...require("daisyui/src/theming/themes")["black"],
-					"--rounded-box": "0",
+					"--rounded-box": "0.5rem",
 					"--rounded-btn": "0.5rem",
 					"--rounded-badge": "99999px",
 					"--animation-btn": ".25s",
