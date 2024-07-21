@@ -1,6 +1,5 @@
 .gradle
 .metals
 bin
-gradle
 .bloop
 build/
