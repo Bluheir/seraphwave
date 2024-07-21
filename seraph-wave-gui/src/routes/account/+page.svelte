@@ -7,7 +7,6 @@
 	import { MediaRecorder, register } from "extendable-media-recorder"
 	import { connect } from "extendable-media-recorder-wav-encoder"
 	import { onMount } from "svelte"
-	import { json } from "stream/consumers"
 	import { goto } from "$app/navigation"
 
 	export let data: PageData & { accountInfo: AccountInfo }
@@ -75,7 +74,7 @@
 
 <Navbar />
 <div class="my-5 px-1 w-full">
-	<div class="select-none max-w-[95ch] bg-base-200 p-7 rounded-lg mx-auto md:grid gap-y-5 gap-x-8 grid-rows-[1fr_auto] grid-cols-[auto_1fr] grid-flow-col">
+	<div class="select-none max-w-[95ch] border-neutral border p-7 rounded-box mx-auto md:grid gap-y-5 gap-x-8 grid-rows-[1fr_auto] grid-cols-[auto_1fr] grid-flow-col">
 		<div class="md:contents flex w-full justify-center my-4"><img
 			src="https://crafatar.com/avatars/{data.accountInfo.uuid}"
 			alt=""

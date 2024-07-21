@@ -11,7 +11,7 @@
 	export let onGenerate: (code: string) => Promise<void>
 </script>
 
-<div class="prose bg-base-200 p-9 rounded-md shadow">
+<div class="prose border-2 border-neutral p-9 rounded-md shadow">
 	{#if code}
 		<div in:fly={{ x: 300, duration: 100 }}>
 			<h1>{welcomeMsg}</h1>
