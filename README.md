@@ -46,7 +46,7 @@ git clone https://github.com/Bluheir/seraphwave.git
 cd .\seraphwave\seraph-wave-gui
 bun install
 bun run build
-cd ..\seraphwave
+cd ..\seraph-wave
 gradle build
 ```
 
