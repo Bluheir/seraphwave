@@ -30,25 +30,23 @@ HTTPS is used by default because browsers do not allow microphone access without
 ## Plugin compilation
 The required dependencies for compilation are [Gradle](https://gradle.org/install) and [Bun](https://bun.sh).
 
-To compile this plugin, `git clone` this repository, then execute the following commands in the terminal.
-
 ### for Linux/Unix systems
 ```sh
-# compiling GUI
-cd ./seraph-wave/seraph-wave-gui
+git clone https://github.com/Bluheir/seraphwave.git
+cd ./seraphwave/seraph-wave-gui
+bun install
 bun run build
-# compiling plugin
 cd ../seraph-wave
 gradle build
 ```
 
 ### for Windows systems
 ```bat
-:: compiling GUI
-cd .\seraph-wave\seraph-wave-gui
+git clone https://github.com/Bluheir/seraphwave.git
+cd .\seraphwave\seraph-wave-gui
+bun install
 bun run build
-:: compiling plugin
-cd ..\seraph-wave
+cd ..\seraphwave
 gradle build
 ```
 
