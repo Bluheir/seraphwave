@@ -1,8 +1,6 @@
-import { Buffer } from "buffer"
 import { DummyImpl } from "./dummy"
 import { MainImpl } from "./mainimpl"
 
-import OpusScript from "opusscript"
 import { writable, type Writable } from "svelte/store"
 
 export interface CreateCode {
@@ -45,13 +43,16 @@ export type Vec3d = {
 	z: number
 }
 
+export type PosAudioPacket = {
+	pos: Vec3d
+	dir: Vec3d
+	buf: ArrayBufferLike
+}
+
 export type AudioPacket = {
 	type: "audioPacket"
 	uuid: bigint
-	pos: Vec3d
-	dir: Vec3d
-	buf: ArrayBuffer
-}
+} & PosAudioPacket
 
 export type AudioEvent =
 	| AudioPacket
@@ -142,16 +143,14 @@ export let audioInstance: Writable<AudioManager | undefined> = writable(undefine
 
 export class AudioManager {
 	private audioCtx: AudioContext
-	private codec: OpusScript
 	private jitters: Map<bigint, JitterBuffer>
 	private mediaRecorder: MediaRecorder | undefined
 	private inGainNode: GainNode | undefined
 	private outGainNode: GainNode
 
-	private constructor(audioCtx: AudioContext, codec: OpusScript) {
+	private constructor(audioCtx: AudioContext) {
 		this.audioCtx = audioCtx
 		this.jitters = new Map()
-		this.codec = codec
 		this.mediaRecorder = undefined
 		this.outGainNode = audioCtx.createGain()
 		this.outGainNode.connect(this.audioCtx.destination)
@@ -162,10 +161,7 @@ export class AudioManager {
 		client: VoiceClient,
 		audioCtx: AudioContext,
 	): Promise<AudioManager> {
-		const codec = new OpusScript(AUDIO_PARAMS.sampleRate as any, AUDIO_PARAMS.channelCount, 2048, {
-			wasm: false,
-		})
-		const mgr = new AudioManager(audioCtx, codec)
+		const mgr = new AudioManager(audioCtx)
 
 		client.onAudio(mgr.onAudio.bind(mgr))
 
@@ -195,7 +191,7 @@ export class AudioManager {
 
 		this.mediaRecorder = f(destination.stream)
 		this.mediaRecorder.ondataavailable = async (event) => {
-			let buffer = await event.data.arrayBuffer()
+			let buffer: ArrayBufferLike = await event.data.arrayBuffer()
 
 			if (buffer.byteLength === AUDIO_PARAMS.packetSize) {
 			} else if (buffer.byteLength === AUDIO_PARAMS.packetSize / 2) {
@@ -215,7 +211,6 @@ export class AudioManager {
 				return
 			}
 
-			//const encoded = this.codec.encode(Buffer.from(buffer), frameSize).buffer
 			const encoded = buffer
 			await client.send(encoded)
 		}
@@ -254,7 +249,7 @@ export class AudioManager {
 		let jitter = this.jitters.get(packet.uuid)
 
 		if (!jitter) {
-			jitter = new JitterBuffer(this.audioCtx, this.codec)
+			jitter = new JitterBuffer(this.audioCtx)
 			jitter.connect(this.outGainNode)
 			this.jitters.set(packet.uuid, jitter)
 		}
@@ -264,17 +259,15 @@ export class AudioManager {
 }
 class JitterBuffer {
 	private audioCtx: AudioContext
-	private codec: OpusScript
 	private panner: PannerNode
 	private latency: number
 	private startingTime: number
 	private packetsPlayed: number
 	private lastPlayed: number
 
-	constructor(audioCtx: AudioContext, codec: OpusScript) {
+	constructor(audioCtx: AudioContext) {
 		this.latency = 4
 		this.audioCtx = audioCtx
-		this.codec = codec
 		this.startingTime = 0
 		this.packetsPlayed = 0
 		this.lastPlayed = 0
@@ -307,7 +300,7 @@ class JitterBuffer {
 	connect(node: AudioNode): AudioNode {
 		return this.panner.connect(node)
 	}
-	pushPacket(packet: AudioPacket) {
+	pushPacket(packet: PosAudioPacket) {
 		const currentTime = this.audioCtx.currentTime
 		const diff = (currentTime - this.lastPlayed) * 1000
 		if (this.packetsPlayed === 0 || diff > AUDIO_PARAMS.msPerBuf + 60) {
@@ -322,7 +315,7 @@ class JitterBuffer {
 		this.packetsPlayed += 1
 		this.lastPlayed = currentTime
 	}
-	private playAudioPacket(packet: AudioPacket, timeS: number) {
+	private playAudioPacket(packet: PosAudioPacket, timeS: number) {
 		const { pos, dir, buf } = packet
 
 		this.panner.positionX.setValueAtTime(pos.x, timeS)
