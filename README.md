@@ -4,6 +4,9 @@ Seraphwave is a proximity voice chat plugin for Spigot. Other plugins require mo
 ## How to use
 To use this plugin, first add the plugin jar file to the plugins folder for your Spigot server. When the server is run, a web server will run in the background. Players can access this web server at `https://(server IP address):65437/create` (the port will be different depending on configuration options). Players can then execute the command `/joinprox (code)` to join the voice chat.
 
+## Permissions
+- `seraphwave.joinprox` - permission to use the `/joinprox` command.
+
 ### Config
 See [the config file](./seraph-wave/src/main/resources/config.yml) for the default configuration and meanings for each configuration option.
 
