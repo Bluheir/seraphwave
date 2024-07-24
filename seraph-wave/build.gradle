@@ -3,6 +3,7 @@ buildscript {
         gradlePluginPortal()
     }
     dependencies {
+        classpath "com.jaredsburrows:gradle-license-plugin:0.9.8"
         classpath "com.github.johnrengelman:shadow:8.1.1"
     }
 }
@@ -90,13 +91,36 @@ processResources {
         expand props
     }
 }
+apply plugin: "com.jaredsburrows.license"
+licenseReport {
+    generateCsvReport = false
+    generateHtmlReport = false
+    generateJsonReport = true
+    generateTextReport = true
+
+    copyCsvReportToAssets = false
+    copyHtmlReportToAssets = false
+    copyJsonReportToAssets = true
+    copyTextReportToAssets = true
+}
 task shadowJar(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
     // Ensure the task includes the main source set's output
     from(sourceSets.main.output)
-    
     dependsOn(copySvelteClientFiles)
     from("build") {
         include "svelte-build/**"
+    }
+    from("build/reports/licenses") {
+        include "licenseReport.txt"
+        include "licenseReport.json"
+    }
+    // exclude licenses that are automatically included; they will be included in licenseReport.txt in the jar
+    exclude "LICENSE"
+    exclude "CONTRIBUTING"
+    exclude "NOTICE"
+
+    from("../") {
+        include "LICENSE.md"
     }
 
     // Include dependencies
