@@ -4,8 +4,6 @@
 	import type { PageData } from "./$types"
 	import { apiImpl, AudioManager, type VoiceClient, clientInstance, audioInstance } from "$lib/api"
 
-	import { MediaRecorder, register } from "extendable-media-recorder"
-	import { connect } from "extendable-media-recorder-wav-encoder"
 	import { onMount } from "svelte"
 	import { goto } from "$app/navigation"
 
@@ -21,7 +19,6 @@
 	$: if($audioInstance) { $audioInstance.setOutGain(linearizeGain(outVolume / 100)) }
 
 	$: inVc = $clientInstance !== undefined
-	$: inAudio = $audioInstance !== undefined
 
 	async function startSessionCode(): Promise<void> {
 		const { uuid, code } = data.accountInfo
@@ -46,27 +43,28 @@
 					break
 			}
 		})
-		client.onClose(() => {
+		client.onClose(async () => {
 			if($audioInstance) {
-				$audioInstance.stopAudio()
+				await $audioInstance.stopAudio()
 			}
-			$audioInstance = undefined
 			$clientInstance = undefined
 		})
 	}
 	async function startConn(client: VoiceClient) {
-		let audioCtx = new window.AudioContext()
+		if(!$audioInstance) {
+			const c = window.AudioContext || (window as any).webkitAudioContext
+			let audioCtx = new c()
+			$audioInstance = await AudioManager.createAudioMgr(
+				audioCtx
+			)
+		}
 
-		await register(await connect())
-		$audioInstance = await AudioManager.createAudioMgr(
-			(stream) => new MediaRecorder(stream, { mimeType: "audio/wav" }) as any,
-			client,
-			audioCtx,
-		)
+		$audioInstance.hookEvents(client)
+		await $audioInstance.startAudio()
 	}
 
 	onMount(async () => {
-		if (inVc && !inAudio) {
+		if (inVc) {
 			await startConn($clientInstance!)
 		}
 	})

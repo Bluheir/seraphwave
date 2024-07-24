@@ -2,6 +2,9 @@ import { DummyImpl } from "./dummy"
 import { MainImpl } from "./mainimpl"
 
 import { writable, type Writable } from "svelte/store"
+import encoderPath from "opus-recorder/dist/encoderWorker.min.js?url"
+import Recorder from "opus-recorder"
+import { OpusDecoderWebWorker } from "opus-decoder"
 
 export interface CreateCode {
 	/**
@@ -46,13 +49,16 @@ export type Vec3d = {
 export type PosAudioPacket = {
 	pos: Vec3d
 	dir: Vec3d
-	buf: ArrayBufferLike
+	buf: AudioBuffer
 }
 
 export type AudioPacket = {
 	type: "audioPacket"
 	uuid: bigint
-} & PosAudioPacket
+	pos: Vec3d
+	dir: Vec3d
+	buf: ArrayBufferLike
+}
 
 export type AudioEvent =
 	| AudioPacket
@@ -143,41 +149,40 @@ export let audioInstance: Writable<AudioManager | undefined> = writable(undefine
 
 export class AudioManager {
 	private audioCtx: AudioContext
+	private decoder: OpusDecoderWebWorker
 	private jitters: Map<bigint, JitterBuffer>
-	private mediaRecorder: MediaRecorder | undefined
+	private mediaRecorder: any
 	private inGainNode: GainNode | undefined
 	private outGainNode: GainNode
 
-	private constructor(audioCtx: AudioContext) {
+	private constructor(audioCtx: AudioContext, decoder: OpusDecoderWebWorker) {
 		this.audioCtx = audioCtx
+		this.decoder = decoder
 		this.jitters = new Map()
 		this.mediaRecorder = undefined
 		this.outGainNode = audioCtx.createGain()
 		this.outGainNode.connect(this.audioCtx.destination)
 	}
 
-	static async createAudioMgr(
-		f: (s: MediaStream) => MediaRecorder,
-		client: VoiceClient,
-		audioCtx: AudioContext,
-	): Promise<AudioManager> {
-		const mgr = new AudioManager(audioCtx)
+	static async createAudioMgr(audioCtx: AudioContext): Promise<AudioManager> {
+		const decoder = new OpusDecoderWebWorker({
+			channels: AUDIO_PARAMS.channelCount,
+		})
+		const mgr = new AudioManager(audioCtx, decoder)
+		await decoder.ready
 
-		client.onAudio(mgr.onAudio.bind(mgr))
-
-		await mgr.startAudio(f, client)
+		await mgr.initAudio()
 
 		return mgr
 	}
 
-	private async startAudio(f: (s: MediaStream) => MediaRecorder, client: VoiceClient) {
+	private async initAudio() {
 		const baseStream = await navigator.mediaDevices.getUserMedia({
 			audio: {
 				sampleRate: AUDIO_PARAMS.sampleRate,
 				channelCount: AUDIO_PARAMS.channelCount,
 				sampleSize: AUDIO_PARAMS.bitDepth,
 				echoCancellation: false,
-				
 			},
 			video: false,
 		})
@@ -186,45 +191,44 @@ export class AudioManager {
 
 		source.connect(this.inGainNode)
 
-		const destination = this.audioCtx.createMediaStreamDestination()
-		this.inGainNode.connect(destination)
+		this.mediaRecorder = new Recorder({
+			encoderPath,
+			numberOfChannels: AUDIO_PARAMS.channelCount,
+			encoderFrameSize: AUDIO_PARAMS.msPerBuf,
+			encoderApplication: 2048, // VOIP Opus application
+			maxFramesPerPage: 1,
+			sourceNode: this.inGainNode,
+			streamPages: true,
+		}) as any
+	}
+	hookEvents(client: VoiceClient) {
+		client.onAudio(this.onAudio.bind(this))
 
-		this.mediaRecorder = f(destination.stream)
-		this.mediaRecorder.ondataavailable = async (event) => {
-			let buffer: ArrayBufferLike = await event.data.arrayBuffer()
+		let m = 0
 
-			if (buffer.byteLength === AUDIO_PARAMS.packetSize) {
-			} else if (buffer.byteLength === AUDIO_PARAMS.packetSize / 2) {
-				// convert 1 channel to 2 channel
-				const dataView = new DataView(buffer)
-				const newBuffer = new Uint16Array(buffer.byteLength)
-
-				for (let i = 0; i < buffer.byteLength / 2; i++) {
-					const value = dataView.getUint16(i, true)
-					newBuffer[i] = value
-					newBuffer[i + 1] = value
-				}
-
-				buffer = newBuffer.buffer
-			} else {
-				// skip the first packet that contains the 44 byte WAV header
+		this.mediaRecorder.ondataavailable = async (oggPage: Uint8Array) => {
+			// The first 2 pages contain only header data, ignore them.
+			if (m < 2) {
+				m += 1
 				return
 			}
+			const rawOpus = extractOpusFrames(oggPage.buffer)
 
-			const encoded = buffer
-			await client.send(encoded)
+			await client.send(rawOpus.buffer)
 		}
-
-		this.mediaRecorder.start(AUDIO_PARAMS.msPerBuf)
 	}
-	stopAudio() {
-		if(this.mediaRecorder) {
-			this.mediaRecorder.ondataavailable = () => { }
-			this.mediaRecorder = undefined
+	async startAudio() {
+		if (this.mediaRecorder) {
+			await this.mediaRecorder.start()
+		}
+	}
+	async stopAudio() {
+		if (this.mediaRecorder) {
+			await this.mediaRecorder.stop()
 		}
 	}
 	setInGain(gain: number) {
-		if(this.inGainNode) {
+		if (this.inGainNode) {
 			this.inGainNode.gain.value = gain
 		}
 	}
@@ -254,7 +258,19 @@ export class AudioManager {
 			this.jitters.set(packet.uuid, jitter)
 		}
 
-		jitter.pushPacket(packet)
+		const decoded = await this.decoder.decodeFrame(new Uint8Array(packet.buf))
+
+		const buf = new AudioBuffer({
+			sampleRate: decoded.sampleRate,
+			length: decoded.samplesDecoded,
+			numberOfChannels: AUDIO_PARAMS.channelCount,
+		})
+
+		decoded.channelData.forEach((channelData, index) => {
+			buf.copyToChannel(channelData, index)
+		})
+
+		jitter.pushPacket({ buf, pos: packet.pos, dir: packet.dir })
 	}
 }
 class JitterBuffer {
@@ -326,41 +342,54 @@ class JitterBuffer {
 		this.panner.orientationY.setValueAtTime(dir.y, timeS)
 		this.panner.orientationZ.setValueAtTime(dir.z, timeS)
 
-		const decoded = buf
-		//const decoded = this.codec.decode(Buffer.from(buf)).buffer
-		const [left, right] = pcmToF32Channels(decoded)
-
-		const audioBuf = new AudioBuffer({
-			numberOfChannels: AUDIO_PARAMS.channelCount,
-			length: AUDIO_PARAMS.frameSize,
-			sampleRate: AUDIO_PARAMS.sampleRate,
-		})
-		audioBuf.copyToChannel(left, 0)
-		audioBuf.copyToChannel(right, 1)
-
 		const audio = this.audioCtx.createBufferSource()
-		audio.buffer = audioBuf
+		audio.buffer = buf
 		audio.connect(this.panner)
 		audio.start(timeS)
 	}
 }
 
-function pcmToF32Channels(arrayBuffer: ArrayBufferLike) {
-	const dataView = new DataView(arrayBuffer)
-	const sampleCount = dataView.byteLength / 2 // Each sample is 16 bits (2 bytes)
+function extractOpusFrames(arrayBuffer: ArrayBufferLike): Uint8Array {
+	const view = new DataView(arrayBuffer)
+	let offset = 0
+	const opusFrames: Uint8Array[] = []
 
-	const channel1 = new Float32Array(sampleCount / 2)
-	const channel2 = new Float32Array(sampleCount / 2)
+	while (offset < view.byteLength) {
+		if (
+			view.getUint8(offset) === 0x4f &&
+			view.getUint8(offset + 1) === 0x67 &&
+			view.getUint8(offset + 2) === 0x67 &&
+			view.getUint8(offset + 3) === 0x53
+		) {
+			const segmentCount = view.getUint8(offset + 26)
+			const segmentTable = new Uint8Array(arrayBuffer, offset + 27, segmentCount)
+			let segmentOffset = offset + 27 + segmentCount
 
-	for (let i = 0; i < sampleCount / 2; i++) {
-		// Read 16-bit samples (PCM)
-		const sample1 = dataView.getInt16(i * 4, true) // Channel 1
-		const sample2 = dataView.getInt16(i * 4 + 2, true) // Channel 2
+			for (let i = 0; i < segmentCount; i++) {
+				const segmentSize = segmentTable[i]
+				if (segmentSize > 0) {
+					opusFrames.push(new Uint8Array(arrayBuffer, segmentOffset, segmentSize))
+					segmentOffset += segmentSize
+				}
+			}
 
-		// Convert to Float32 (-1.0 to 1.0)
-		channel1[i] = sample1 / 32768 // 16-bit PCM normalization
-		channel2[i] = sample2 / 32768 // 16-bit PCM normalization
+			offset = segmentOffset
+		} else {
+			break
+		}
 	}
 
-	return [channel1, channel2]
+	return combineUint8Arrays(opusFrames)
+}
+function combineUint8Arrays(arrays: Uint8Array[]): Uint8Array {
+	const totalLength = arrays.reduce((acc, curr) => acc + curr.length, 0)
+	const combinedArray = new Uint8Array(totalLength)
+
+	let offset = 0
+	for (const array of arrays) {
+		combinedArray.set(array, offset)
+		offset += array.length
+	}
+
+	return combinedArray
 }
