@@ -53,7 +53,7 @@ function parseAudioArr(buffer: ArrayBuffer): AudioEvent {
     if(type === 0) {
         return {
             type: "audioPacket",
-            uuid: view.getBigInt64(1),
+            uuid: (view.getBigUint64(1) << BigInt(64)) | view.getBigUint64(9),
             pos: {
                 x: view.getFloat64(17),
                 y: view.getFloat64(25),
