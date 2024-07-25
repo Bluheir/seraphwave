@@ -180,16 +180,23 @@ export class AudioManager {
 		const baseStream = await navigator.mediaDevices.getUserMedia({
 			audio: {
 				sampleRate: AUDIO_PARAMS.sampleRate,
-				channelCount: AUDIO_PARAMS.channelCount,
 				sampleSize: AUDIO_PARAMS.bitDepth,
-				echoCancellation: false,
+				echoCancellation: true,
 			},
 			video: false,
 		})
-		const source = this.audioCtx.createMediaStreamSource(baseStream)
+
+		const source = new MediaStreamAudioSourceNode(this.audioCtx, { mediaStream: baseStream })
 		this.inGainNode = this.audioCtx.createGain()
 
-		source.connect(this.inGainNode)
+		const splitter = this.audioCtx.createChannelSplitter(source.channelCount)
+		const merger = this.audioCtx.createChannelMerger(AUDIO_PARAMS.channelCount)
+
+		source.connect(splitter)
+		for(let i = 0; i < Math.max(AUDIO_PARAMS.channelCount, source.channelCount); i++) {
+			splitter.connect(merger, i % source.channelCount, i % AUDIO_PARAMS.channelCount)
+		}
+		merger.connect(this.inGainNode)
 
 		this.mediaRecorder = new Recorder({
 			encoderPath,
