@@ -15,7 +15,13 @@ export const load = async () => {
 	const s = localStorage.getItem("accounts")
 
 	if (s) {
-		accounts = new Map(Object.entries(JSON.parse(s)))
+		try {
+			accounts = new Map(Object.entries(JSON.parse(s)))
+		} catch {
+			console.error("accounts storage got corrupted")
+			localStorage.setItem("accounts", "{}")
+			accounts = new Map()
+		}
 	} else {
 		localStorage.setItem("accounts", "{}")
 		accounts = new Map()
