@@ -20,8 +20,12 @@
 	{:else}
 		<h1>{welcomeMsg}</h1>
 		<p>To use proximity chat on this server, you will need to generate a code.</p>
-		<button class="btn btn-primary" on:click={async () => {code = await codeGen.createCode(); await onGenerate(code) }}
-			>Generate a code</button
+		<button
+			class="btn btn-primary"
+			on:click={async () => {
+				code = await codeGen.createCode()
+				await onGenerate(code)
+			}}>Generate a code</button
 		>
 	{/if}
 </div>
