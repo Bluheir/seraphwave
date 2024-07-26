@@ -289,7 +289,7 @@ class JitterBuffer {
 	private lastPlayed: number
 
 	constructor(audioCtx: AudioContext) {
-		this.latency = 4
+		this.latency = 3
 		this.audioCtx = audioCtx
 		this.startingTime = 0
 		this.packetsPlayed = 0
@@ -313,9 +313,9 @@ class JitterBuffer {
 			coneInnerAngle: 60,
 			coneOuterAngle: 90,
 
-			coneOuterGain: 0.6,
+			coneOuterGain: 0.75,
 
-			rolloffFactor: 1.3,
+			rolloffFactor: 1.7,
 			refDistance: 1,
 		})
 	}
