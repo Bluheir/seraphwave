@@ -2,7 +2,7 @@ val scala3Version = "3.4.2"
 
 name := "Seraphwave"
 
-version := "0.1"
+version := "0.1.1"
 
 scalaVersion := scala3Version
 javacOptions ++= Seq("-source", "21", "-target", "21")
