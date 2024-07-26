@@ -31,7 +31,7 @@ An advantage this plugin has over all the alternatives is that it uses Scala as 
 HTTPS is used by default because browsers do not allow microphone access without a secure connection.
 
 ## Plugin compilation
-The required dependencies for compilation are [Gradle](https://gradle.org/install) and [Bun](https://bun.sh).
+The required dependencies for compilation are [SBT](https://www.scala-sbt.org/download) and [Bun](https://bun.sh).
 
 ### for Linux/Unix systems
 ```sh
@@ -40,7 +40,9 @@ cd ./seraphwave/seraph-wave-gui
 bun install
 bun run build
 cd ../seraph-wave
-gradle build
+sbt assembly
+# optional, reduce the size of the jar
+sbt proguard
 ```
 
 ### for Windows systems
@@ -50,10 +52,12 @@ cd .\seraphwave\seraph-wave-gui
 bun install
 bun run build
 cd ..\seraph-wave
-gradle build
+sbt assembly
+:: optional, reduce the size of the jar
+sbt proguard
 ```
 
-The resultant plugin jar file will be located in `./seraph-wave/build/libs`.
+The resultant plugin jar file will be located at `./seraph-wave/target/scala-3.4.2/Seraphwave-(version).jar` and `./seraph-wave/target/scala-3.4.2/Seraphwave-(version)-MIN.jar` for the Proguard jar with the reduced size.
 
 ## License
 This project is licensed under the terms of the Apache-2.0 license. Refer to [LICENSE.md](./LICENSE.md).
