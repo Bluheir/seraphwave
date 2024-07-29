@@ -24,7 +24,9 @@ libraryDependencies ++= Seq(
   "org.typelevel" %% "cats-effect" % "3.5.4",
 
   "org.bouncycastle" % "bcpkix-jdk18on" % "1.78.1",
-  "org.bouncycastle" % "bcprov-jdk18on" % "1.78.1"
+  "org.bouncycastle" % "bcprov-jdk18on" % "1.78.1",
+
+  "co.fs2" %% "fs2-core" % "3.10.2"
 )
 
 
@@ -72,7 +74,7 @@ Proguard / proguardOptions ++= Seq(
   "-keep class org.http4s.** { *; }",
 )
 
-Proguard / proguardOutputs := Seq(target.value / s"scala-${scala3Version}" / s"Seraphwave-${version.value}-MIN.jar")
+Proguard / proguardOutputs := Seq(target.value / s"scala-${scala3Version}" / "proguard" / s"Seraphwave-${version.value}.jar")
 Proguard / proguard / javaOptions := Seq("-Xmx4G")
 Proguard / proguardInputs := Seq((assembly / assemblyOutputPath).value)
 Proguard / proguardMerge := false
