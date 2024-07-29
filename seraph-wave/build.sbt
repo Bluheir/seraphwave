@@ -13,7 +13,7 @@ libraryDependencies ++= Seq(
   
   "org.http4s" %% "http4s-core" % "0.23.16",
   "org.http4s" %% "http4s-dsl" % "0.23.16",
-  "org.http4s" %% "http4s-blaze-server" % "0.23.16",
+  "org.http4s" %% "http4s-ember-server" % "0.23.16",
   "org.http4s" %% "http4s-circe" % "0.23.16",
 
   "io.circe" %% "circe-literal" % "0.14.9",
@@ -72,6 +72,7 @@ Proguard / proguardOptions ++= Seq(
   "-dontoptimize",
   "-keep class com.seraphwave.* { *; }",
   "-keep class org.http4s.** { *; }",
+  "-keep class org.bcprov-jdk18on.** { *; }"
 )
 
 Proguard / proguardOutputs := Seq(target.value / s"scala-${scala3Version}" / "proguard" / s"Seraphwave-${version.value}.jar")

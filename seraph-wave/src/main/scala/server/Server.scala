@@ -12,7 +12,7 @@ import org.http4s.dsl.io._
 import org.http4s.implicits._
 import org.http4s.circe._
 import org.http4s.server.Router
-import org.http4s.blaze.server.BlazeServerBuilder
+import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.websocket.WebSocketBuilder2
 
 import io.circe.literal._
@@ -20,6 +20,9 @@ import io.circe._
 
 import java.util.UUID
 import javax.net.ssl.SSLContext
+import com.comcast.ip4s.Host
+import com.comcast.ip4s.Port
+import fs2.io.net.tls.TLSContext
 
 def metaJson(meta: ServerMetaInfo): Json =
   json"""{"welcomeMsg": ${meta.welcomeMsg}, "webSocketUrl": ${meta.webSocketUrl}}"""
@@ -106,15 +109,17 @@ class HttpServer private (
     ).orNotFound
 
   def startServer(sslContext: Option[SSLContext]) = sslContext match {
-    case Some(value) => BlazeServerBuilder[IO]
-      .bindHttp(port = config.httpServer.port, host = config.httpServer.host)
+    case Some(value) => EmberServerBuilder.default[IO]
+      .withHost(Host.fromString(config.httpServer.host).get)
+      .withPort(Port.fromInt(config.httpServer.port).get)
       .withHttpWebSocketApp(ws => app(ws))
-      .withSslContext(value)
-      .resource
-    case None => BlazeServerBuilder[IO]
-      .bindHttp(port = config.httpServer.port, host = config.httpServer.host)
+      .withTLS(TLSContext.Builder.forAsync[IO].fromSSLContext(value))
+      .build
+    case None => EmberServerBuilder.default[IO]
+      .withHost(Host.fromString(config.httpServer.host).get)
+      .withPort(Port.fromInt(config.httpServer.port).get)
       .withHttpWebSocketApp(ws => app(ws))
-      .resource
+      .build
   }
 }
 
