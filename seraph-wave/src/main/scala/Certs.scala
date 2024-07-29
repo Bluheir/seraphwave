@@ -47,23 +47,22 @@ object CertUtils {
     val endDate = new Date(now + 365 * 24 * 3600 * 1000L)
 
     val serial = BigInteger.valueOf(now)
-
-    val dn = X500Name(s"CN=${domain}")
     val contentSigner: ContentSigner = JcaContentSignerBuilder(
       "SHA256WithRSAEncryption"
     ).build(keyPair.getPrivate)
 
     val certBuilder: X509v3CertificateBuilder = JcaX509v3CertificateBuilder(
-      dn,
+      X500Name(s"CN=Seraphwave"),
       serial,
       startDate,
       endDate,
-      dn,
+      X500Name(s"CN=${domain}"),
       keyPair.getPublic
     )
 
     val certHolder = certBuilder.build(contentSigner)
     JcaX509CertificateConverter().setProvider("BC").getCertificate(certHolder)
+
   private def createNewCert(
       keyFile: File,
       certFile: File
