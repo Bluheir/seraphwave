@@ -28,6 +28,9 @@ import org.bukkit.entity.{Player, Entity}
 import org.bukkit.Bukkit
 
 import scodec.bits.ByteVector
+import cats.effect.kernel.Outcome.Canceled
+import cats.effect.kernel.Outcome.Succeeded
+import cats.instances.queue
 
 type SQueue = Queue[IO, SessionInfo]
 enum CodeRemoval:
@@ -36,7 +39,7 @@ enum CodeRemoval:
   case NotConnected
 
 enum ClientState:
-  case Offline(queue: Queue[IO, Unit])
+  case Offline(queue: Queue[IO, Boolean])
   case Online(queue: Queue[IO, OnlineFrame])
 
 enum OnlineFrame:
@@ -120,7 +123,7 @@ class WebSocketMgr(
           _ <- stateUuid match {
             case Some(ClientState.Online(_)) => IO.pure(())
             // notify that the client is online now
-            case Some(ClientState.Offline(queue)) => queue.offer(())
+            case Some(ClientState.Offline(queue)) => queue.offer(true)
             case None                             => IO.pure(())
           }
         } yield (())
@@ -314,36 +317,150 @@ class WebSocketMgr(
 
   private def waitUntilOnline(
       uuid: UUID,
-      queue: Queue[IO, Unit]
-  ): IO[(TextFrame, Player, Queue[IO, OnlineFrame])] = {
-    for {
-      // wait until the player is online using the queue
-      _ <- queue.take
-      queue <- Queue.bounded[IO, OnlineFrame](4096)
-      _ <- clientMap.setKeyValue(uuid, ClientState.Online(queue))
-      player <- IO(Plugin.instance.getServer().getPlayer(uuid))
-      tf <- IO.pure(
-        TextFrame(
-          playerUpdateJson(
-            PlayerUpdate.PlayerConnect(PlayerConnStatus.Online)
-          ).toString
+      queue: Queue[IO, Boolean]
+  ): IO[Option[(TextFrame, Player, Queue[IO, OnlineFrame])]] = for {
+    // wait until the player is online using the queue
+    resultant <- queue.take
+    result <- resultant match {
+      case true => for {
+        queue <- Queue.bounded[IO, OnlineFrame](4096)
+        _ <- clientMap.setKeyValue(uuid, ClientState.Online(queue))
+        player <- IO(Plugin.instance.getServer().getPlayer(uuid))
+        tf <- IO.pure(
+          TextFrame(
+            playerUpdateJson(
+              PlayerUpdate.PlayerConnect(PlayerConnStatus.Online)
+            ).toString
+          )
         )
-      )
-    } yield ((tf, player, queue))
-  }
+      } yield Some((tf, player, queue))
+      case false => IO.pure(None)
+    }
+
+  } yield result
+
   private def waitUntilOnlineF(
       uuid: UUID,
       rem: Stream[IO, WebSocketFrame]
   ): Pull[IO, WebSocketFrame, Unit] =
-  (for {
-    queue <- Pull.eval(for {
-      queue <- Queue.bounded[IO, Unit](1)
-      _ <- clientMap.setKeyValue(uuid, ClientState.Offline(queue))
-    } yield queue)
-    result <- Pull.eval(waitUntilOnline(uuid, queue))
-  } yield result).flatMap {
-    case (tf, player, queue) => Pull.output1(tf) >> handlePlayer(player, queue, rem)
-  }
+    (for {
+      queue <- Pull.eval(for {
+        queue <- Queue.bounded[IO, Boolean](1)
+        _ <- clientMap.setKeyValue(uuid, ClientState.Offline(queue))
+      } yield queue)
+      p1 = Pull.eval(waitUntilOnline(uuid, queue)).flatMap {
+        case Some((tf, player, queue)) => Pull.output1(tf) >> handlePlayer(player, queue, rem)
+        case None => Pull.eval(clientMap.unsetKey(uuid))
+      }
+      p2 = rem.pull.peek1 >> Pull.eval(queue.offer(false))
+    } yield p1.stream.merge(p2.stream).pull.echo).flatMap(v => v)
+
+  private def tempCode(
+      code: String,
+      rem: Stream[IO, WebSocketFrame]
+  ): Pull[IO, WebSocketFrame, Unit] = Pull
+    .eval(for {
+      codeVal <- codesMap(code).get
+      response <- codeVal match {
+        case Some(value) =>
+          value match {
+            case None => {
+              for {
+                queue <- Queue.bounded[IO, SessionInfo](1)
+                _ <- codesMap.setKeyValue(code, Some(queue))
+                // wait for the player to execute the command /joinprox <code>
+                info <- queue.take
+                // this temporary code can be discarded
+                _ <- codesMap.unsetKey(code)
+                queue <- Queue.bounded[IO, OnlineFrame](4096)
+                _ <- clientMap.setKeyValue(
+                  info.uuid,
+                  ClientState.Online(queue)
+                )
+                player <- IO(
+                  Plugin.instance.getServer().getPlayer(info.uuid)
+                )
+              } yield (Right((info, player, queue)))
+            }
+            case Some(_) => {
+              IO.pure(
+                Left(
+                  TextFrame(responseErrorJson(errCodeConsumed).toString())
+                )
+              )
+            }
+          }
+        case None => {
+          IO.pure(
+            Left(TextFrame(responseErrorJson(errTempNotExists).toString()))
+          )
+        }
+      }
+    } yield response)
+    .flatMap {
+      case Right((info, player, queue)) =>
+        Pull.output(
+          Chunk(
+            TextFrame(sessionInfoJson(info).toString),
+            TextFrame(
+              playerUpdateJson(PlayerConnStatus.Online.toUpdate()).toString
+            )
+          )
+        ) >> handlePlayer(player, queue, rem)
+      case Left(value) => Pull.output1(value)
+    }
+  private def fullCode(
+      sessionCode: Array[Byte],
+      uuid: UUID,
+      rem: Stream[IO, WebSocketFrame]
+  ): Pull[IO, WebSocketFrame, Unit] = Pull
+    .eval(for {
+      player <- IO(Plugin.instance.getServer().getOfflinePlayer(uuid))
+      contained <- Plugin.codeMgr.contains(uuid, sessionCode)
+      result <- player match {
+        case onlinePlayer: Player if contained =>
+          for {
+            queue <- Queue.bounded[IO, OnlineFrame](4096)
+          } yield Right(Right((onlinePlayer, uuid, queue)))
+        case _ if contained => {
+          val tf = TextFrame(
+            playerUpdateJson(PlayerConnStatus.Offline.toUpdate())
+              .toString()
+          )
+          IO.pure(Right(Left((tf, uuid))))
+        }
+        case _ =>
+          IO.pure(
+            Left(TextFrame(responseErrorJson(errSessionKey).toString))
+          )
+      }
+    } yield result)
+    .flatMap {
+      case Right(Right((player, uuid, queue))) =>
+        handlePlayerCheckConn(
+          uuid,
+          Pull.eval(
+            clientMap.setKeyValue(
+              uuid,
+              ClientState.Online(queue)
+            )
+          ) >>
+            Pull.output1(
+              TextFrame(
+                playerUpdateJson(
+                  PlayerConnStatus.Online.toUpdate()
+                ).toString
+              )
+            ) >>
+            handlePlayer(player, queue, rem)
+        )
+      case Right(Left((tf, uuid))) =>
+        handlePlayerCheckConn(
+          uuid,
+          Pull.output1(tf) >> waitUntilOnlineF(uuid, rem)
+        )
+      case Left(tf) => Pull.output1(tf)
+    }
 
   private def handleHello(
       hello: HelloObj,
@@ -355,107 +472,9 @@ class WebSocketMgr(
     }
 
     hello.obj match {
-      case HelloMsgData.TempCode(code) => {
-        val effect = for {
-          codeVal <- codesMap(code).get
-          response <- codeVal match {
-            case Some(value) =>
-              value match {
-                case None => {
-                  for {
-                    queue <- Queue.bounded[IO, SessionInfo](1)
-                    _ <- codesMap.setKeyValue(code, Some(queue))
-                    // wait for the player to execute the command /joinprox <code>
-                    info <- queue.take
-                    // this temporary code can be discarded
-                    _ <- codesMap.unsetKey(code)
-                    queue <- Queue.bounded[IO, OnlineFrame](4096)
-                    _ <- clientMap.setKeyValue(
-                      info.uuid,
-                      ClientState.Online(queue)
-                    )
-                    player <- IO(
-                      Plugin.instance.getServer().getPlayer(info.uuid)
-                    )
-                  } yield (Right((info, player, queue)))
-                }
-                case Some(_) => {
-                  IO.pure(
-                    Left(
-                      TextFrame(responseErrorJson(errCodeConsumed).toString())
-                    )
-                  )
-                }
-              }
-            case None => {
-              IO.pure(
-                Left(TextFrame(responseErrorJson(errTempNotExists).toString()))
-              )
-            }
-          }
-        } yield (response)
-
-        Pull.eval(effect).flatMap {
-          case Right((info, player, queue)) =>
-            Pull.output(
-              Chunk(
-                TextFrame(sessionInfoJson(info).toString),
-                TextFrame(
-                  playerUpdateJson(PlayerConnStatus.Online.toUpdate()).toString
-                )
-              )
-            ) >> handlePlayer(player, queue, rem)
-          case Left(value) => Pull.output1(value)
-        }
-      }
-      case HelloMsgData.FullCode(sessionCode, uuid) => {
-        val effect = for {
-          player <- IO(Plugin.instance.getServer().getOfflinePlayer(uuid))
-          contained <- Plugin.codeMgr.contains(uuid, sessionCode)
-          result <- player match {
-            case onlinePlayer: Player if contained => for {
-                queue <- Queue.bounded[IO, OnlineFrame](4096)
-              } yield Right(Right((onlinePlayer, uuid, queue)))
-            case _ if contained => {
-              val tf = TextFrame(
-                playerUpdateJson(PlayerConnStatus.Offline.toUpdate())
-                  .toString()
-              )
-              IO.pure(Right(Left((tf, uuid))))
-            }
-            case _ =>
-              IO.pure(
-                Left(TextFrame(responseErrorJson(errSessionKey).toString))
-              )
-          }
-        } yield (result)
-
-        Pull.eval(effect).flatMap {
-          case Right(Right((player, uuid, queue))) => handlePlayerCheckConn(
-            uuid,
-            Pull.eval(
-              clientMap.setKeyValue(
-                uuid,
-                ClientState.Online(queue)
-              )
-            ) >>
-            Pull.output1(
-              TextFrame(
-                playerUpdateJson(
-                  PlayerConnStatus.Online.toUpdate()
-                ).toString
-              )
-            ) >>
-            handlePlayer(player, queue, rem)
-          )
-          case Right(Left((tf, uuid))) =>
-            handlePlayerCheckConn(
-              uuid,
-              Pull.output1(tf) >> waitUntilOnlineF(uuid, rem)
-            )
-          case Left(tf) => Pull.output1(tf)
-        }
-      }
+      case HelloMsgData.TempCode(code) => this.tempCode(code, rem)
+      case HelloMsgData.FullCode(sessionCode, uuid) =>
+        this.fullCode(sessionCode, uuid, rem)
     }
   }
 
