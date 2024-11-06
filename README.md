@@ -39,10 +39,8 @@ git clone https://github.com/Bluheir/seraphwave.git
 cd ./seraphwave/seraph-wave-gui
 bun install
 bun run build
-cd ../seraph-wave
-sbt assembly
-# optional, reduce the size of the jar
-sbt proguard
+cd ..
+./mill seraph-wave.assembly
 ```
 
 ### for Windows systems
@@ -51,13 +49,11 @@ git clone https://github.com/Bluheir/seraphwave.git
 cd .\seraphwave\seraph-wave-gui
 bun install
 bun run build
-cd ..\seraph-wave
-sbt assembly
-:: optional, reduce the size of the jar
-sbt proguard
+cd ..\
+.\mill.bat seraph-wave.assembly
 ```
 
-The resultant plugin jar file will be located at `./seraph-wave/target/scala-3.4.2/Seraphwave-(version).jar` and `./seraph-wave/target/scala-3.4.2/proguard/Seraphwave-(version).jar` for the Proguard jar with the reduced size.
+The resultant plugin jar file will be located at `./out/seraph-wave/assembly.dest/Seraphwave-(version).jar`.
 
 ## License
 This project is licensed under the terms of the Apache-2.0 license. Refer to [LICENSE.md](./LICENSE.md).
